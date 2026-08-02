@@ -87,3 +87,25 @@ npm test
 npm run build
 npm run test:e2e
 ```
+
+## Running with Docker
+
+No local Node.js install or `npm install` is required — the build happens inside the container.
+
+**Prerequisites:**
+
+```sh
+cp .env.example .env.local
+```
+
+**Run:**
+
+```sh
+docker-compose up
+```
+
+The application will be available at `http://localhost:3002`. The build reads `.env.local` the same way `npm run build` does locally, so it picks up `NEXT_PUBLIC_API_BASE_URL` automatically. To point at a different backend, update `.env.local` and rebuild:
+
+```sh
+docker-compose up --build
+```
