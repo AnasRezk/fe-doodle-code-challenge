@@ -65,3 +65,25 @@ Once completed, send an email with a link to your repository to `code-challenge@
 We will review your submission within one week although sometimes it might take a bit longer.
 
 Good luck and happy coding!
+
+## Local development
+
+This repository uses Next.js with TypeScript, Tailwind CSS, shadcn/ui conventions, TanStack React Query, and TanStack Virtual.
+
+```sh
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+The application is available at `http://localhost:3002`. The default API base URL is `http://localhost:3000`; change `NEXT_PUBLIC_API_BASE_URL` in `.env.local` if the backend uses a different origin.
+
+Run the project checks with:
+
+```sh
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm run test:e2e
+```
