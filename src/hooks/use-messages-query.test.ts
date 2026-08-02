@@ -4,6 +4,7 @@ import { MESSAGES_PAGE_SIZE, type Message } from "@/lib/api/messages";
 
 import {
   getInitialMessagesCursor,
+  getLatestMessagesCursor,
   getNextMessagesCursor,
   mergeMessagePages,
   messagesQueryKeys,
@@ -37,6 +38,12 @@ describe("messages query pagination", () => {
 
   it("stops loading when the final page is not full", () => {
     expect(getNextMessagesCursor([createMessage(1)])).toBeUndefined();
+  });
+
+  it("uses the newest rendered message as the incremental cursor", () => {
+    expect(getLatestMessagesCursor([createMessage(1), createMessage(2)])).toBe(
+      createMessage(2).createdAt,
+    );
   });
 
   it("sorts mixed page orders chronologically and removes cursor duplicates", () => {

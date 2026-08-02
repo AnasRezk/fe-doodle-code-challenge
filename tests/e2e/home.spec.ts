@@ -11,7 +11,7 @@ test("logs in and protects the chat routes", async ({ context, page }) => {
     method: string;
     url: string;
   }> = [];
-  const firstPage = Array.from({ length: 10 }, (_, index) => ({
+  const firstPage = Array.from({ length: 20 }, (_, index) => ({
     _id: String(index),
     message: `Message ${index}`,
     author: "Ada Lovelace",
@@ -29,6 +29,13 @@ test("logs in and protects the chat routes", async ({ context, page }) => {
     createdAt: new Date(new Date(oldestFirstPageMessage.createdAt).getTime() - 1000).toISOString(),
     message: "An older message",
   };
+  const newerMessage = {
+    _id: "newer-message",
+    author: "Grace Hopper",
+    createdAt: "2024-01-12T10:32:00.000Z",
+    message: "A new message",
+  };
+  let newerRequestCount = 0;
 
   await page.route("http://localhost:3000/api/v1/messages**", async (route) => {
     const request = route.request();
@@ -68,11 +75,20 @@ test("logs in and protects the chat routes", async ({ context, page }) => {
       return;
     }
 
+    const after = new URL(request.url()).searchParams.get("after");
     const before = new URL(request.url()).searchParams.get("before");
     const isOlderPageRequest = before === oldestFirstPageMessage.createdAt;
 
     await route.fulfill({
-      body: JSON.stringify(isOlderPageRequest ? [olderMessage] : firstPage),
+      body: JSON.stringify(
+        after
+          ? ++newerRequestCount === 1
+            ? []
+            : [newerMessage]
+          : isOlderPageRequest
+            ? [olderMessage]
+            : firstPage,
+      ),
       contentType: "application/json",
       headers: { "Access-Control-Allow-Origin": "http://localhost:3002" },
       status: 200,
@@ -117,7 +133,7 @@ test("logs in and protects the chat routes", async ({ context, page }) => {
 
         return (
           method === "GET" &&
-          requestUrl.searchParams.get("limit") === "10" &&
+          requestUrl.searchParams.get("limit") === "20" &&
           Boolean(requestUrl.searchParams.get("before")) &&
           requestUrl.searchParams.get("before") !== oldestFirstPageMessage.createdAt
         );
@@ -148,6 +164,32 @@ test("logs in and protects the chat routes", async ({ context, page }) => {
     )
     .toBe(true);
   await expect.poll(() => messageFeed.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+
+  await messageFeed.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    element.dispatchEvent(new Event("scroll", { bubbles: true }));
+  });
+  await expect
+    .poll(() =>
+      messageRequests.some(({ method, url }) => {
+        const requestUrl = new URL(url);
+
+        return method === "GET" && Boolean(requestUrl.searchParams.get("after"));
+      }),
+    )
+    .toBe(true);
+
+  await messageFeed.evaluate((element) => {
+    element.scrollTop = 0;
+    element.dispatchEvent(new Event("scroll", { bubbles: true }));
+  });
+  await messageFeed.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    element.dispatchEvent(new Event("scroll", { bubbles: true }));
+  });
+  await expect.poll(() => newerRequestCount).toBe(2);
+  await expect(page.getByText("A new message", { exact: true })).toBeVisible();
+
   const cookies = await context.cookies();
   const accessToken = cookies.find(({ name }) => name === "access_token")?.value;
 

@@ -13,6 +13,7 @@ export type Message = {
 
 export type ListMessagesOptions = {
   accessToken: string;
+  after?: string;
   before?: string;
   limit?: number;
   signal?: AbortSignal;
@@ -53,8 +54,12 @@ function isMessage(value: unknown): value is Message {
   );
 }
 
-function getMessagesPath({ before, limit = MESSAGES_PAGE_SIZE }: ListMessagesOptions) {
+function getMessagesPath({ after, before, limit = MESSAGES_PAGE_SIZE }: ListMessagesOptions) {
   const searchParams = new URLSearchParams({ limit: String(limit) });
+
+  if (after) {
+    searchParams.set("after", after);
+  }
 
   if (before) {
     searchParams.set("before", before);

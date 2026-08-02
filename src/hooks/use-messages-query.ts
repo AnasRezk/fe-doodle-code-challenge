@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 
 import {
   listMessages,
@@ -46,10 +46,15 @@ export function getNextMessagesCursor(lastPage: Message[]) {
   ).createdAt;
 }
 
+export function getLatestMessagesCursor(messages: Message[]) {
+  return messages.at(-1)?.createdAt;
+}
+
 export function useMessagesQuery(accessToken: string) {
   const [initialBefore] = useState(getInitialMessagesCursor);
+  const queryClient = useQueryClient();
 
-  return useInfiniteQuery({
+  const historyQuery = useInfiniteQuery({
     queryKey: messagesQueryKeys.history(),
     initialPageParam: initialBefore,
     queryFn: ({ pageParam, signal }) =>
@@ -66,4 +71,40 @@ export function useMessagesQuery(accessToken: string) {
     }),
     staleTime: 15_000,
   });
+
+  const newerMessagesMutation = useMutation({
+    mutationFn: (after: string) =>
+      listMessages({
+        accessToken,
+        after,
+        limit: MESSAGES_PAGE_SIZE,
+      }),
+    onSuccess: (newerMessages, after) => {
+      if (newerMessages.length === 0) {
+        return;
+      }
+
+      queryClient.setQueryData<InfiniteData<Message[], string>>(
+        messagesQueryKeys.history(),
+        (cachedHistory) => {
+          if (!cachedHistory) {
+            return cachedHistory;
+          }
+
+          return {
+            ...cachedHistory,
+            pages: [newerMessages, ...cachedHistory.pages],
+            pageParams: [after, ...cachedHistory.pageParams],
+          };
+        },
+      );
+    },
+  });
+
+  return {
+    ...historyQuery,
+    fetchNewerMessages: newerMessagesMutation.mutate,
+    isFetchNewerMessagesError: newerMessagesMutation.isError,
+    isFetchingNewerMessages: newerMessagesMutation.isPending,
+  };
 }
