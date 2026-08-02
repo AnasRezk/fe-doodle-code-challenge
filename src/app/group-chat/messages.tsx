@@ -186,6 +186,20 @@ function MessageFeed({ accessToken, username }: { accessToken: string; username:
           <p className="grid min-h-full place-items-center text-slate-600">No messages yet.</p>
         ) : null}
 
+        {!isLoading &&
+        !isError &&
+        messages.length > 0 &&
+        !hasNextPage &&
+        !isFetchingNextPage &&
+        !isFetchNextPageError ? (
+          <p
+            className="mx-auto mb-3 w-fit rounded-full bg-white/90 px-3 py-1 text-sm font-medium text-slate-500 shadow-sm"
+            role="status"
+          >
+            No more messages
+          </p>
+        ) : null}
+
         {messages.length > 0 ? (
           <div className="relative mx-auto w-full max-w-6xl" style={{ height: virtualizer.getTotalSize() }}>
             {virtualizer.getVirtualItems().map((virtualRow) => {

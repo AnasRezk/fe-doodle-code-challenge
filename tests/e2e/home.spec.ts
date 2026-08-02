@@ -163,6 +163,7 @@ test("logs in and protects the chat routes", async ({ context, page }) => {
       ),
     )
     .toBe(true);
+  await expect(page.getByText("No more messages", { exact: true })).toBeVisible();
   await expect.poll(() => messageFeed.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
 
   await messageFeed.evaluate((element) => {
