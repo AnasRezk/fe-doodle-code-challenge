@@ -32,9 +32,30 @@ describe("apiFetch", () => {
     expect(headers.get("authorization")).toBe("Bearer session-token");
   });
 
-  it("rejects requests without an access token", () => {
-    expect(() => apiFetch("/api/v1/messages", { accessToken: "" })).toThrow(
+  it("rejects requests without an access token", async () => {
+    await expect(apiFetch("/api/v1/messages", { accessToken: "" })).rejects.toEqual(
       new ApiConfigurationError("An access token is required for API requests."),
     );
+  });
+
+  it("ends the session and redirects when the backend returns 401", async () => {
+    const replace = vi.fn();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("location", { replace });
+
+    await expect(
+      apiFetch("/api/v1/messages", { accessToken: "expired-token" }),
+    ).resolves.toHaveProperty("status", 401);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/auth/logout",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(replace).toHaveBeenCalledWith("/login");
   });
 });

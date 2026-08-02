@@ -59,6 +59,14 @@ This document explains the deliberate technical choices behind the chat applicat
 
 **Outcome:** The API base URL comes from local environment configuration; each request receives its generated `access_token` Bearer value through this boundary. A backend change has one clear integration point.
 
+### End an invalid session when the API returns 401
+
+**Decision:** Handle `401 Unauthorized` responses in the shared API client by clearing the session cookies through a same-origin logout route and replacing the current location with `/login`.
+
+**Why:** The proxy can verify that cookies exist, but only the backend can determine whether their token is accepted. Central handling keeps expired or rejected sessions consistent across every API operation.
+
+**Outcome:** A rejected request cannot leave the user on a protected page with a retry loop. Other response codes, including `404 Not Found`, remain available to feature-specific error handling.
+
 ### Separate server state from UI state
 
 **Decision:** Use React Query for messages, a cookie for the display name, and React state for transient interface state.

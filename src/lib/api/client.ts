@@ -19,7 +19,22 @@ function getApiUrl(path: string) {
   return new URL(path, baseUrl);
 }
 
-export function apiFetch(
+async function redirectUnauthorizedUser() {
+  if (typeof globalThis.location === "undefined") {
+    return;
+  }
+
+  try {
+    await fetch("/api/auth/logout", {
+      cache: "no-store",
+      method: "POST",
+    });
+  } finally {
+    globalThis.location.replace("/login");
+  }
+}
+
+export async function apiFetch(
   path: string,
   { accessToken, headers: requestHeaders, ...init }: AuthenticatedRequestInit,
 ) {
@@ -30,8 +45,14 @@ export function apiFetch(
   const headers = new Headers(requestHeaders);
   headers.set("authorization", `Bearer ${accessToken}`);
 
-  return fetch(getApiUrl(path), {
+  const response = await fetch(getApiUrl(path), {
     ...init,
     headers,
   });
+
+  if (response.status === 401) {
+    await redirectUnauthorizedUser();
+  }
+
+  return response;
 }
