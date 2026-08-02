@@ -76,7 +76,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-The application is available at `http://localhost:3002`. The default API base URL is `http://localhost:3000`; change `NEXT_PUBLIC_API_BASE_URL` in `.env.local` if the backend uses a different origin.
+The application is available at `http://localhost:3002`. The default API base URL is `http://localhost:3000`; change `API_BASE_URL` in `.env.local` if the backend uses a different origin.
 
 Run the project checks with:
 
@@ -104,7 +104,7 @@ cp .env.example .env.local
 docker-compose up
 ```
 
-The application will be available at `http://localhost:3002`. The build reads `.env.local` the same way `npm run build` does locally, so it picks up `NEXT_PUBLIC_API_BASE_URL` automatically. To point at a different backend, update `.env.local` and rebuild:
+The application will be available at `http://localhost:3002`. The build reads `.env.local` the same way `npm run build` does locally, so it picks up `API_BASE_URL` automatically. To point at a different backend, update `.env.local` and rebuild:
 
 ```sh
 docker-compose up --build
