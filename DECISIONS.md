@@ -12,21 +12,13 @@ This document explains the deliberate technical choices behind the chat applicat
 
 **Outcome:** Messages whose author matches the cookie value use the "mine" bubble style; all other messages use the participant style. The transport header is configurable but never treated as user identity. The cookie is a non-sensitive preference, scoped to the application, and uses an appropriate `SameSite` setting.
 
-### Generated access token satisfies the API contract
+### Fixed demo access token satisfies the API contract
 
-**Decision:** Generate a random placeholder token for each new browser session and store it in a first-party cookie named `access_token`.
+**Decision:** Store the backend's documented demo token, `super-secret-doodle-token`, in a first-party cookie named `access_token` when a visitor joins the chat.
 
-**Why:** The messages API expects a Bearer header but accepts any value. Persisting the generated value in a cookie lets server and client use the same token for API requests without hard-coding a shared secret.
+**Why:** The messages API requires a Bearer header and documents this token for local development. Persisting it in a cookie lets the server and client use the same transport value for API requests.
 
-**Outcome:** The API client reads `access_token` and sends `Authorization: Bearer <token>` with every message request. This token is a development transport value only: it does not authenticate a user, grant permissions, or determine message ownership.
-
-### Poll for new messages
-
-**Decision:** Refresh messages at an interval using the latest message timestamp as the `after` cursor.
-
-**Why:** The backend offers a REST API and cursor-based retrieval, but no WebSocket or server-sent-events endpoint. Periodic incremental fetching gives a near-real-time chat experience without repeatedly downloading the full history.
-
-**Outcome:** New messages appear automatically, while the client avoids unnecessary network and rendering work.
+**Outcome:** The API client reads `access_token` and sends `Authorization: Bearer super-secret-doodle-token` with every message request. This token is a development transport value only: it does not authenticate a user, grant permissions, or determine message ownership.
 
 ### Load older history on demand
 
@@ -36,6 +28,14 @@ This document explains the deliberate technical choices behind the chat applicat
 
 **Outcome:** Initial load remains fast and the conversation can grow without a large upfront request.
 
+### Refresh newer messages when returning to the bottom
+
+**Decision:** Immediately request messages using the API's `after` timestamp cursor when a user scrolls away from the bottom of the feed and returns to it.
+
+**Why:** The `before` cursor only expands older history. An `after` cursor retrieves messages that arrived since the newest message already displayed, without refetching the full conversation.
+
+**Outcome:** React Query merges the incremental response into the cached feed and deduplicates messages. The feed makes one request each time the user returns to the bottom, shows loading and retry feedback there, and preserves the user's position while older history is loaded.
+
 ## Technology decisions
 
 | Decision | Why it was selected | How it is used |
@@ -44,10 +44,10 @@ This document explains the deliberate technical choices behind the chat applicat
 | React + TypeScript | Required by the challenge; TypeScript makes message contracts and UI states explicit. | Types are shared across the API client, query hooks, and components. |
 | Tailwind CSS | Enables consistent responsive spacing, colours, and states without fragmented stylesheet conventions. | Design tokens and responsive utilities reproduce the supplied desktop and mobile references. |
 | shadcn/ui | Provides accessible, composable UI primitives that remain fully owned by the repository. | Used selectively for controls such as inputs, buttons, dialogs, and scroll behaviour; components are styled to the supplied design rather than left at defaults. |
-| TanStack React Query | Solves server-state caching, request lifecycle, retries, mutations, and background refresh cleanly. | Owns message queries, cursor pagination, polling, optimistic sending, and rollback on send failure. |
+| TanStack React Query | Solves server-state caching, request lifecycle, retries, and mutations cleanly. | Owns message queries, cursor pagination, optimistic sending, and rollback on send failure. |
 | `@tanstack/react-virtual` | Keeps rendering efficient as chat history grows, especially on mobile devices. | Limits rendered message rows while preserving scrolling and older-message loading. |
 | Vitest | Fast unit and component test feedback in a TypeScript frontend. | Covers formatting helpers, message ownership variants, and data-layer behaviour. |
-| Playwright | Exercises the user-visible flow in real browsers and at responsive viewports. | Covers loading a conversation, sending a message, and loading older messages on desktop and mobile. |
+| Playwright | Exercises the user-visible flow in real browsers and at responsive viewports. | Covers loading a conversation, sending a message, and loading both older (`before`) and newer (`after`) messages on desktop and mobile. |
 
 ## Architecture decisions
 
@@ -110,3 +110,8 @@ This document explains the deliberate technical choices behind the chat applicat
 **Why:** The challenge assesses code quality and commit history; clear provenance is more valuable than the tool that produced a change.
 
 **Outcome:** Each change remains easy to inspect, test, and revise.
+
+## Future improvements
+
+- Add real-time message delivery using WebSockets or Server-Sent Events.
+- Add Sentry for client and server error tracking, performance monitoring, and source-map reporting.

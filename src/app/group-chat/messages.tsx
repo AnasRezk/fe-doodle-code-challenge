@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { Button } from "@/components/ui/button";
-import { useMessagesQuery } from "@/hooks/use-messages-query";
+import { getLatestMessagesCursor, useMessagesQuery } from "@/hooks/use-messages-query";
 
 const LOAD_MORE_THRESHOLD = 80;
 
@@ -18,6 +18,8 @@ function MessageFeed({ accessToken, username }: { accessToken: string; username:
   const scrollElementRef = useRef<HTMLDivElement>(null);
   const preserveScrollRef = useRef<PreserveScrollPosition | null>(null);
   const hasPositionedInitialPageRef = useRef(false);
+  const hasScrolledAwayFromBottomRef = useRef(false);
+  const lastRequestedNewerCursorRef = useRef<string | null>(null);
   const wasNearBottomRef = useRef(true);
   const {
     data,
@@ -26,11 +28,14 @@ function MessageFeed({ accessToken, username }: { accessToken: string; username:
     hasNextPage,
     isError,
     isFetchNextPageError,
+    isFetchNewerMessagesError,
     isFetchingNextPage,
+    isFetchingNewerMessages,
     isLoading,
     refetch,
+    fetchNewerMessages,
   } = useMessagesQuery(accessToken);
-  const messages = data?.messages ?? [];
+  const messages = useMemo(() => data?.messages ?? [], [data?.messages]);
   // TanStack Virtual intentionally exposes mutable functions; this component does not memoize them.
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
@@ -46,6 +51,12 @@ function MessageFeed({ accessToken, username }: { accessToken: string; username:
       preserveScrollRef.current = null;
     }
   }, [isFetchNextPageError]);
+
+  useEffect(() => {
+    if (isFetchNewerMessagesError) {
+      lastRequestedNewerCursorRef.current = null;
+    }
+  }, [isFetchNewerMessagesError]);
 
   useLayoutEffect(() => {
     const scrollElement = scrollElementRef.current;
@@ -95,6 +106,22 @@ function MessageFeed({ accessToken, username }: { accessToken: string; username:
     void fetchNextPage();
   }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
+  const loadNewerMessages = useCallback(() => {
+    const after = getLatestMessagesCursor(messages);
+
+    if (
+      !after ||
+      isFetchingNewerMessages ||
+      lastRequestedNewerCursorRef.current === after
+    ) {
+      return;
+    }
+
+    lastRequestedNewerCursorRef.current = after;
+    hasScrolledAwayFromBottomRef.current = false;
+    fetchNewerMessages(after);
+  }, [fetchNewerMessages, isFetchingNewerMessages, messages]);
+
   const handleScroll = useCallback(() => {
     const scrollElement = scrollElementRef.current;
 
@@ -102,13 +129,23 @@ function MessageFeed({ accessToken, username }: { accessToken: string; username:
       return;
     }
 
-    wasNearBottomRef.current =
-      scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight <= 160;
+    const distanceFromBottom =
+      scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight;
+    wasNearBottomRef.current = distanceFromBottom <= 160;
+
+    if (distanceFromBottom > LOAD_MORE_THRESHOLD) {
+      hasScrolledAwayFromBottomRef.current = true;
+      lastRequestedNewerCursorRef.current = null;
+    }
 
     if (scrollElement.scrollTop <= LOAD_MORE_THRESHOLD) {
       loadOlderMessages();
     }
-  }, [loadOlderMessages]);
+
+    if (hasScrolledAwayFromBottomRef.current && distanceFromBottom <= LOAD_MORE_THRESHOLD) {
+      loadNewerMessages();
+    }
+  }, [loadNewerMessages, loadOlderMessages]);
 
   return (
     <section aria-labelledby="messages-title" className="relative min-h-0 flex-1">
@@ -117,7 +154,7 @@ function MessageFeed({ accessToken, username }: { accessToken: string; username:
       </h1>
 
       <div
-        aria-busy={isLoading || isFetchingNextPage}
+        aria-busy={isLoading || isFetchingNextPage || isFetchingNewerMessages}
         aria-label="Group chat messages"
         aria-live="off"
         className="h-full overflow-y-auto px-4 py-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-600 sm:px-8"
@@ -147,6 +184,20 @@ function MessageFeed({ accessToken, username }: { accessToken: string; username:
 
         {!isLoading && !isError && messages.length === 0 ? (
           <p className="grid min-h-full place-items-center text-slate-600">No messages yet.</p>
+        ) : null}
+
+        {!isLoading &&
+        !isError &&
+        messages.length > 0 &&
+        !hasNextPage &&
+        !isFetchingNextPage &&
+        !isFetchNextPageError ? (
+          <p
+            className="mx-auto mb-3 w-fit rounded-full bg-white/90 px-3 py-1 text-sm font-medium text-slate-500 shadow-sm"
+            role="status"
+          >
+            No more messages
+          </p>
         ) : null}
 
         {messages.length > 0 ? (
@@ -190,6 +241,27 @@ function MessageFeed({ accessToken, username }: { accessToken: string; username:
         >
           <span>Older messages could not be loaded.</span>
           <Button className="min-h-8 px-3 text-xs" onClick={loadOlderMessages}>
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
+      {isFetchingNewerMessages ? (
+        <p
+          className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-white px-3 py-1 text-sm font-medium text-slate-600 shadow"
+          role="status"
+        >
+          Checking for new messages…
+        </p>
+      ) : null}
+
+      {isFetchNewerMessagesError ? (
+        <div
+          className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full bg-white px-3 py-1 text-sm text-red-800 shadow"
+          role="alert"
+        >
+          <span>New messages could not be loaded.</span>
+          <Button className="min-h-8 px-3 text-xs" onClick={loadNewerMessages}>
             Retry
           </Button>
         </div>

@@ -46,6 +46,26 @@ describe("listMessages", () => {
     expect(headers.get("authorization")).toBe("Bearer session-token");
   });
 
+  it("loads newer messages after a timestamp", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([message]), {
+        headers: { "Content-Type": "application/json" },
+        status: 200,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await listMessages({
+      accessToken: "session-token",
+      after: "2024-01-12T10:30:00Z",
+    });
+
+    const [url] = fetchMock.mock.calls[0] as unknown as [URL];
+    expect(url.toString()).toBe(
+      "http://localhost:3000/api/v1/messages?limit=20&after=2024-01-12T10%3A30%3A00Z",
+    );
+  });
+
   it("returns an actionable error for a failed request", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 500 })));
 
