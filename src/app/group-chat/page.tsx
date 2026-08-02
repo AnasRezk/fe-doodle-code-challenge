@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import bodyBackground from "../../../assets/Body BG.png";
 
 import { QueryProvider } from "@/components/providers/query-provider";
-import { ACCESS_TOKEN_COOKIE, USERNAME_COOKIE } from "@/lib/auth/cookies";
+import { USERNAME_COOKIE } from "@/lib/auth/cookies";
 
 import { MessageComposer } from "./message-composer";
 import { Messages } from "./messages";
@@ -15,8 +15,7 @@ export const metadata: Metadata = {
 
 export default async function GroupChatPage() {
   const cookieStore = await cookies();
-  // The proxy guarantees both cookies before this protected route is rendered.
-  const accessToken = cookieStore.get(ACCESS_TOKEN_COOKIE)!.value.trim();
+  // The proxy guarantees this cookie before this protected route is rendered.
   const username = cookieStore.get(USERNAME_COOKIE)!.value.trim();
 
   return (
@@ -25,8 +24,8 @@ export default async function GroupChatPage() {
       style={{ backgroundImage: `url("${bodyBackground.src}")` }}
     >
       <QueryProvider>
-        <Messages accessToken={accessToken} username={username} />
-        <MessageComposer accessToken={accessToken} username={username} />
+        <Messages username={username} />
+        <MessageComposer username={username} />
       </QueryProvider>
     </main>
   );

@@ -3,11 +3,8 @@
 import { useState } from "react";
 import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 
-import {
-  listMessages,
-  MESSAGES_PAGE_SIZE,
-  type Message,
-} from "@/lib/api/messages";
+import { listMessages } from "@/lib/api/messages.actions";
+import { MESSAGES_PAGE_SIZE, type Message, unwrapMessagesResult } from "@/lib/api/messages";
 
 export const messagesQueryKeys = {
   all: ["messages"] as const,
@@ -50,20 +47,18 @@ export function getLatestMessagesCursor(messages: Message[]) {
   return messages.at(-1)?.createdAt;
 }
 
-export function useMessagesQuery(accessToken: string) {
+export function useMessagesQuery() {
   const [initialBefore] = useState(getInitialMessagesCursor);
   const queryClient = useQueryClient();
 
   const historyQuery = useInfiniteQuery({
     queryKey: messagesQueryKeys.history(),
     initialPageParam: initialBefore,
-    queryFn: ({ pageParam, signal }) =>
+    queryFn: ({ pageParam }) =>
       listMessages({
-        accessToken,
         before: pageParam,
         limit: MESSAGES_PAGE_SIZE,
-        signal,
-      }),
+      }).then(unwrapMessagesResult),
     getNextPageParam: getNextMessagesCursor,
     select: (data) => ({
       ...data,
@@ -75,10 +70,9 @@ export function useMessagesQuery(accessToken: string) {
   const newerMessagesMutation = useMutation({
     mutationFn: (after: string) =>
       listMessages({
-        accessToken,
         after,
         limit: MESSAGES_PAGE_SIZE,
-      }),
+      }).then(unwrapMessagesResult),
     onSuccess: (newerMessages, after) => {
       if (newerMessages.length === 0) {
         return;

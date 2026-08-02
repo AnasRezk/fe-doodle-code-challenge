@@ -2,11 +2,8 @@
 
 import { useMutation, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 
-import {
-  createMessage,
-  type CreateMessageInput,
-  type Message,
-} from "@/lib/api/messages";
+import { createMessage } from "@/lib/api/messages.actions";
+import { type CreateMessageInput, type Message, unwrapMessagesResult } from "@/lib/api/messages";
 
 import { messagesQueryKeys } from "./use-messages-query";
 
@@ -53,11 +50,11 @@ export function replaceOptimisticMessage(
   };
 }
 
-export function useSendMessageMutation(accessToken: string) {
+export function useSendMessageMutation() {
   const queryClient = useQueryClient();
 
   return useMutation<Message, Error, CreateMessageInput, SendMessageContext>({
-    mutationFn: (input) => createMessage({ accessToken, ...input }),
+    mutationFn: (input) => createMessage(input).then(unwrapMessagesResult),
     onMutate: async (input) => {
       await queryClient.cancelQueries({ queryKey: messagesQueryKeys.history() });
 

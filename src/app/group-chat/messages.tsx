@@ -14,7 +14,7 @@ type PreserveScrollPosition = {
   scrollTop: number;
 };
 
-function MessageFeed({ accessToken, username }: { accessToken: string; username: string }) {
+function MessageFeed({ username }: { username: string }) {
   const scrollElementRef = useRef<HTMLDivElement>(null);
   const preserveScrollRef = useRef<PreserveScrollPosition | null>(null);
   const hasPositionedInitialPageRef = useRef(false);
@@ -34,7 +34,7 @@ function MessageFeed({ accessToken, username }: { accessToken: string; username:
     isLoading,
     refetch,
     fetchNewerMessages,
-  } = useMessagesQuery(accessToken);
+  } = useMessagesQuery();
   const messages = useMemo(() => data?.messages ?? [], [data?.messages]);
   // TanStack Virtual intentionally exposes mutable functions; this component does not memoize them.
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -270,6 +270,6 @@ function MessageFeed({ accessToken, username }: { accessToken: string; username:
   );
 }
 
-export function Messages({ accessToken, username }: { accessToken: string; username: string }) {
-  return <MessageFeed accessToken={accessToken} username={username} />;
+export function Messages({ username }: { username: string }) {
+  return <MessageFeed username={username} />;
 }

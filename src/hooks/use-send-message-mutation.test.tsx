@@ -3,7 +3,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createMessage, type Message } from "@/lib/api/messages";
+import { createMessage } from "@/lib/api/messages.actions";
+import { type Message, type MessagesActionResult } from "@/lib/api/messages";
 
 import { messagesQueryKeys } from "./use-messages-query";
 import {
@@ -11,14 +12,9 @@ import {
   useSendMessageMutation,
 } from "./use-send-message-mutation";
 
-vi.mock("@/lib/api/messages", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api/messages")>();
-
-  return {
-    ...actual,
-    createMessage: vi.fn(),
-  };
-});
+vi.mock("@/lib/api/messages.actions", () => ({
+  createMessage: vi.fn(),
+}));
 
 const existingMessage: Message = {
   _id: "existing-message",
@@ -44,7 +40,7 @@ function setup() {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
-  const hook = renderHook(() => useSendMessageMutation("session-token"), { wrapper });
+  const hook = renderHook(() => useSendMessageMutation(), { wrapper });
 
   return { hook, initialCache, queryClient };
 }
@@ -55,7 +51,7 @@ describe("useSendMessageMutation", () => {
   });
 
   it("adds a message immediately and replaces it with the server response", async () => {
-    let resolveRequest: (message: Message) => void = () => undefined;
+    let resolveRequest: (result: MessagesActionResult<Message>) => void = () => undefined;
     vi.mocked(createMessage).mockReturnValue(
       new Promise((resolve) => {
         resolveRequest = resolve;
@@ -83,7 +79,7 @@ describe("useSendMessageMutation", () => {
       message: "Hello",
     };
 
-    act(() => resolveRequest(confirmedMessage));
+    act(() => resolveRequest({ data: confirmedMessage, ok: true }));
 
     await waitFor(() => {
       const cache = queryClient.getQueryData<MessagesCache>(messagesQueryKeys.history());
@@ -92,7 +88,11 @@ describe("useSendMessageMutation", () => {
   });
 
   it("restores the exact previous cache when sending fails", async () => {
-    vi.mocked(createMessage).mockRejectedValue(new Error("Network unavailable"));
+    vi.mocked(createMessage).mockResolvedValue({
+      message: "Unable to send message (500).",
+      ok: false,
+      status: 500,
+    });
     const { hook, initialCache, queryClient } = setup();
 
     act(() => {

@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createMessage, listMessages, MessagesApiError } from "./messages";
+vi.mock("next/headers", () => ({
+  cookies: () => Promise.resolve({ get: () => ({ value: "session-token" }) }),
+}));
+
+import { createMessage, listMessages } from "./messages.actions";
 
 const message = {
   _id: "123e4567-e89b-12d3-a456-426614174000",
@@ -10,7 +14,7 @@ const message = {
 };
 
 beforeEach(() => {
-  vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://localhost:3000");
+  vi.stubEnv("API_BASE_URL", "http://localhost:3000");
 });
 
 afterEach(() => {
@@ -30,11 +34,10 @@ describe("listMessages", () => {
 
     await expect(
       listMessages({
-        accessToken: "session-token",
         before: "2024-01-12T15:45:00Z",
         limit: 50,
       }),
-    ).resolves.toEqual([message]);
+    ).resolves.toEqual({ data: [message], ok: true });
 
     const [url, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
     const headers = new Headers(init.headers);
@@ -56,7 +59,6 @@ describe("listMessages", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await listMessages({
-      accessToken: "session-token",
       after: "2024-01-12T10:30:00Z",
     });
 
@@ -69,9 +71,11 @@ describe("listMessages", () => {
   it("returns an actionable error for a failed request", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 500 })));
 
-    await expect(listMessages({ accessToken: "session-token" })).rejects.toEqual(
-      new MessagesApiError("Unable to load messages (500).", 500),
-    );
+    await expect(listMessages()).resolves.toEqual({
+      message: "Unable to load messages (500).",
+      ok: false,
+      status: 500,
+    });
   });
 
   it("rejects an invalid response contract", async () => {
@@ -82,9 +86,24 @@ describe("listMessages", () => {
       ),
     );
 
-    await expect(listMessages({ accessToken: "session-token" })).rejects.toEqual(
-      new MessagesApiError("The messages API returned an invalid response.", 200),
+    await expect(listMessages()).resolves.toEqual({
+      message: "The messages API returned an invalid response.",
+      ok: false,
+      status: 200,
+    });
+  });
+
+  it("reports unreachable errors instead of throwing", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new TypeError("fetch failed")),
     );
+
+    await expect(listMessages()).resolves.toEqual({
+      message: "Unable to reach the messages API.",
+      ok: false,
+      status: 0,
+    });
   });
 });
 
@@ -100,11 +119,10 @@ describe("createMessage", () => {
 
     await expect(
       createMessage({
-        accessToken: "session-token",
         author: "Ada",
         message: "Hello everyone!",
       }),
-    ).resolves.toEqual(message);
+    ).resolves.toEqual({ data: message, ok: true });
 
     const [url, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
     const headers = new Headers(init.headers);
@@ -119,8 +137,10 @@ describe("createMessage", () => {
   it("returns an actionable send error", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 500 })));
 
-    await expect(
-      createMessage({ accessToken: "session-token", author: "Ada", message: "Hello" }),
-    ).rejects.toEqual(new MessagesApiError("Unable to send message (500).", 500));
+    await expect(createMessage({ author: "Ada", message: "Hello" })).resolves.toEqual({
+      message: "Unable to send message (500).",
+      ok: false,
+      status: 500,
+    });
   });
 });
