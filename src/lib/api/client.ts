@@ -10,10 +10,10 @@ export class ApiConfigurationError extends Error {
 }
 
 function getApiUrl(path: string) {
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  const baseUrl = process.env.API_BASE_URL;
 
   if (!baseUrl) {
-    throw new ApiConfigurationError("NEXT_PUBLIC_API_BASE_URL is not configured.");
+    throw new ApiConfigurationError("API_BASE_URL is not configured.");
   }
 
   return new URL(path, baseUrl);

@@ -2,6 +2,10 @@ services:
   app:
     build:
       context: .
+    environment:
+      - API_BASE_URL=http://host.docker.internal:3000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "3002:3002"
     restart: unless-stopped

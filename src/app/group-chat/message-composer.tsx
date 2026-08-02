@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSendMessageMutation } from "@/hooks/use-send-message-mutation";
 
-export function MessageComposer({ accessToken, username }: { accessToken: string; username: string }) {
+export function MessageComposer({ username }: { username: string }) {
   const [message, setMessage] = useState("");
   const [announcement, setAnnouncement] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const wasSendingRef = useRef(false);
-  const sendMessage = useSendMessageMutation(accessToken);
+  const sendMessage = useSendMessageMutation();
   const normalizedMessage = message.trim();
 
   useEffect(() => {

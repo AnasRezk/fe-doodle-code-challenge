@@ -1,6 +1,4 @@
-import { apiFetch } from "./client";
-
-const MESSAGES_PATH = "/api/v1/messages";
+export const MESSAGES_PATH = "/api/v1/messages";
 
 export const MESSAGES_PAGE_SIZE = 20;
 
@@ -12,11 +10,9 @@ export type Message = {
 };
 
 export type ListMessagesOptions = {
-  accessToken: string;
   after?: string;
   before?: string;
   limit?: number;
-  signal?: AbortSignal;
 };
 
 export type CreateMessageInput = {
@@ -24,10 +20,7 @@ export type CreateMessageInput = {
   author: string;
 };
 
-export type CreateMessageOptions = CreateMessageInput & {
-  accessToken: string;
-  signal?: AbortSignal;
-};
+export type CreateMessageOptions = CreateMessageInput;
 
 export class MessagesApiError extends Error {
   constructor(
@@ -39,7 +32,21 @@ export class MessagesApiError extends Error {
   }
 }
 
-function isMessage(value: unknown): value is Message {
+// Server Actions redact thrown error messages in production, so actions report
+// failure through this return value instead of throwing across the RPC boundary.
+export type MessagesActionResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; message: string; status: number };
+
+export function unwrapMessagesResult<T>(result: MessagesActionResult<T>): T {
+  if (!result.ok) {
+    throw new MessagesApiError(result.message, result.status);
+  }
+
+  return result.data;
+}
+
+export function isMessage(value: unknown): value is Message {
   if (!value || typeof value !== "object") {
     return false;
   }
@@ -54,7 +61,7 @@ function isMessage(value: unknown): value is Message {
   );
 }
 
-function getMessagesPath({ after, before, limit = MESSAGES_PAGE_SIZE }: ListMessagesOptions) {
+export function getMessagesPath({ after, before, limit = MESSAGES_PAGE_SIZE }: ListMessagesOptions) {
   const searchParams = new URLSearchParams({ limit: String(limit) });
 
   if (after) {
@@ -66,55 +73,4 @@ function getMessagesPath({ after, before, limit = MESSAGES_PAGE_SIZE }: ListMess
   }
 
   return `${MESSAGES_PATH}?${searchParams.toString()}`;
-}
-
-export async function listMessages(options: ListMessagesOptions): Promise<Message[]> {
-  const response = await apiFetch(getMessagesPath(options), {
-    accessToken: options.accessToken,
-    cache: "no-store",
-    headers: {
-      Accept: "application/json",
-    },
-    signal: options.signal,
-  });
-
-  if (!response.ok) {
-    throw new MessagesApiError(`Unable to load messages (${response.status}).`, response.status);
-  }
-
-  const payload: unknown = await response.json();
-
-  if (!Array.isArray(payload) || !payload.every(isMessage)) {
-    throw new MessagesApiError("The messages API returned an invalid response.", response.status);
-  }
-
-  return payload;
-}
-
-export async function createMessage(options: CreateMessageOptions): Promise<Message> {
-  const response = await apiFetch(MESSAGES_PATH, {
-    accessToken: options.accessToken,
-    body: JSON.stringify({
-      author: options.author,
-      message: options.message,
-    } satisfies CreateMessageInput),
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-    signal: options.signal,
-  });
-
-  if (!response.ok) {
-    throw new MessagesApiError(`Unable to send message (${response.status}).`, response.status);
-  }
-
-  const payload: unknown = await response.json();
-
-  if (!isMessage(payload)) {
-    throw new MessagesApiError("The messages API returned an invalid response.", response.status);
-  }
-
-  return payload;
 }
